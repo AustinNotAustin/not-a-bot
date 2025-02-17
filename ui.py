@@ -9,6 +9,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from bleak import BleakClient, BleakScanner
 from global_vars import CANCEL_BUTTON
 from matplotlib import font_manager
+from tkinter import TclError
 
 
 START_TEXT = f"Start ({CANCEL_BUTTON})"
@@ -17,18 +18,29 @@ STOP_TEXT = f"Stop ({CANCEL_BUTTON})"
 
 class BlueToothController:
     # Bluetooth Device Information
-    device_name = "Not Connected"
-    device_address = None
-    device_characteristic_uuid = None
+    selected_device_name = "Not Connected"
+    selected_device_address = None
+    selected_device_characteristic_uuid = None
+
+    # Bluetooth Variables
+    HEART_RATE_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
+    HEART_RATE_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
 
     # Controls
     start_button = "escape"
     stop_button = "escape"
 
     # Application Logic
+    is_closing_application = False
     is_running = False
     client = None
     bpm_data = []
+    threads = []  # List to keep track of threads
+
+    # Application Variables
+    SCANNING_RETRY_SLEEP = 2
+    BLUETOOTH_KEEP_ALIVE_SLEEP = 5
+    bluetooth_device_verbiage = "Bluetooth Device:\n"
     
     # Design Variables
     font = "Dogica"
@@ -53,6 +65,7 @@ class BlueToothController:
         self.root.title("Bluetooth Controller")
         self.root.geometry("900x600")
         self.root.config(bg=self.background_color)
+        self.root.protocol("WM_DELETE_WINDOW", self.close_application)
 
         # Create a frame to center the elements
         self.frame = tk.Frame(root)
@@ -71,7 +84,7 @@ class BlueToothController:
         self.bluetooth_devices_button.config(height=2, bg=self.bluetooth_button_color, font=(self.font, self.xl_font))
 
         #  Bluetooth Device Texts
-        self.bluetooth_text = tk.Message(self.frame, text=f"Bluetooth Device:\n{self.device_name}", width=200)
+        self.bluetooth_text = tk.Message(self.frame, text=f"{self.bluetooth_device_verbiage}{self.selected_device_name}", width=200)
         self.bluetooth_text.grid(row=0, column=2, padx=10, pady=10)
         self.bluetooth_text.config(bg=self.foreground_color, font=(self.font, self.lg_font))
 
@@ -114,15 +127,20 @@ class BlueToothController:
         self.canvas.get_tk_widget().config(bg="#8B4513")
 
 
+    # Stops and start the BPM measurement and subsequent actions
     def toggle_start_stop(self):
         if self.is_running:
             self.start_stop_button.config(text=START_TEXT, bg=self.start_button_color)
             self.is_running = False
-        else:
+            self.stop_heart_rate_monitor()
+        elif self.client is not None:
             self.start_stop_button.config(text=STOP_TEXT, bg=self.stop_button_color)
             self.is_running = True
-            threading.Thread(target=self.simulate_run_heart_rate_monitor).start()
-            # threading.Thread(target=self.run_heart_rate_monitor).start()
+            self.start_thread(self.run_heart_rate_monitor)
+            # threading.Thread(target=self.run_heart_rate_monitor, daemon=True).start()
+        else:
+            print("No Bluetooth device connected. Please connect a device first.")
+            self.open_bluetooth_devices()
 
         self.line.set_xdata(range(len(self.bpm_data)))
         self.line.set_ydata(self.bpm_data)
@@ -145,76 +163,91 @@ class BlueToothController:
         self.device_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.device_listbox.config(bg=self.foreground_color, font=(self.font, self.xl_font))
 
+        self.device_listbox.bind("<<ListboxSelect>>", self.on_device_select)
+
         self.button_frame = tk.Frame(self.scan_frame, bg=self.background_color)
         self.button_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=10, pady=10)
 
-        self.connect_button = tk.Button(self.button_frame, text="Connect", command=self.connect_bluetooth)
+        self.connect_button = tk.Button(self.button_frame, text="Connect", command=lambda: self.start_thread(self.connect_bluetooth))
         self.connect_button.config(height=2, bg=self.bluetooth_button_color, font=(self.font, self.xl_font))
         self.connect_button.pack(side=tk.LEFT, padx=10, pady=10)
 
-        self.refresh_button = tk.Button(self.button_frame, text="Refresh", command=self.list_bluetooth_devices)
+        self.refresh_button = tk.Button(self.button_frame, text="Refresh", command=lambda: self.start_thread(self.run_blue_tooth_scan))
         self.refresh_button.config(height=2, bg=self.refresh_button_color, font=(self.font, self.xl_font))
         self.refresh_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        # Run the scan in a separate thread
-        threading.Thread(target=self.run_blue_tooth_scan).start()
+        # Start the Bluetooth scan
+        self.start_thread(self.run_blue_tooth_scan)
 
+
+    # Scans for Bluetooth devices and lists them by calling list_bluetooth_devices
     def run_blue_tooth_scan(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.list_bluetooth_devices())
-    
 
-    async def list_bluetooth_devices(self):
-        # Clear the listbox
-        self.device_listbox.delete(0, tk.END)
 
-        # Add a scanning message
-        self.device_listbox.insert(tk.END, "Scanning for Bluetooth devices...")
+    async def connect_bluetooth(self):
+        print(f"Connecting to {self.selected_device_name}  ({self.selected_device_address})...")
+        while self.client is None:
+            try:
+                print("Attempting to connect...")
+                self.client = BleakClient(self.selected_device_address)
+                await self.client.connect()
 
-        # Discover Bluetooth devices
-        devices = await BleakScanner.discover()
-        max_name_length = 10
-
-        # Iterate once to obtain the max name length
-        # have to iterate twice b/c 1st name might be shorter than 2nd name
-        for device in devices:
-            device_name = device.name if device.name is not None else "Unknown Name"
-            max_name_length = max(max_name_length, len(device_name) + 2)
-
-        # Iterate again to insert devices into the listbox
-        for device in devices:
-            self.device_listbox.insert(tk.END, f"{device_name:<{max_name_length}} {device.address}")
-        
-        # Delete the scanning message
-        self.device_listbox.delete(0)
-
-    def connect_bluetooth(self):
-        pass
+                self.start_thread(self.bluetooth_keep_alive)
+                self.bluetooth_text.config(text=f"{self.bluetooth_device_verbiage}{self.selected_device_name}")
+                self.scan_window.destroy()
+            except Exception as e:
+                print(f"Connection error: {e}. Retrying in {self.SCANNING_RETRY_SLEEP} seconds...")
+                await asyncio.sleep(self.SCANNING_RETRY_SLEEP)
 
 
     # Connect to a defined Bluetooth device and keep the connection alive
-    async def connect_and_keep_alive(self):
-        while True:
+    async def bluetooth_keep_alive(self):
+        while not self.is_closing_application:
             try:
-                if self.client is None:
-                    self.client = await BleakClient.connect(self.device_address)
-                else:
-                    if not self.client.is_connected:
-                        await self.client.connect()
-                await asyncio.sleep(5)
+                if not self.client.is_connected:
+                    await self.client.connect()
             except Exception as e:
                 print(f"Connection error: {e}")
                 self.client = None
-                await asyncio.sleep(5)
+            # Sleep before trying a keep alive again
+            await asyncio.sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
 
 
-    # Simulate heart rate data for demonstration purposes
-    def simulate_run_heart_rate_monitor(self):
-        while self.is_running:
-            heart_rate = random.randint(60, 100)
+    # Begins reading heart rate data from the Bluetooth device
+    async def run_heart_rate_monitor(self):
+        # Fetch services and characteristics
+        self.selected_device_characteristic_uuid = await self.search_for_characteristic_uuid()
+        
+        if not self.selected_device_characteristic_uuid:
+            print("No characteristic UUID found. Does the device support Heart Rate Measurement?")
+            return
+
+        def heart_rate_handler(sender, data):
+            heart_rate = data[1]
             self.plot_heart_rate_data(heart_rate)
-            time.sleep(1)
+            print(f"Heart Rate: {heart_rate} bpm")
+
+        await self.client.start_notify(self.selected_device_characteristic_uuid, heart_rate_handler)
+        try:
+            while await self.client.is_connected() and self.is_running and not self.is_closing_application:
+                await asyncio.sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
+        finally:
+            await self.client.stop_notify(self.selected_device_characteristic_uuid)
+
+
+    def stop_heart_rate_monitor(self):
+        self.is_running = False
+        asyncio.run_coroutine_threadsafe(self.client.stop_notify(self.selected_device_characteristic_uuid), asyncio.get_event_loop())
+
+
+    # Used to close the application properly
+    def close_application(self):
+        self.is_closing_application = True
+        self.root.destroy()
+        exit(0)
 
 
     # # # # # # # # #
@@ -236,6 +269,92 @@ class BlueToothController:
         self.ax.relim()
         self.ax.autoscale_view()
         self.canvas.draw()
+
+
+    # Simulate heart rate data for demonstration purposes
+    def simulate_run_heart_rate_monitor(self):
+        while self.is_running and not self.is_closing_application:
+            heart_rate = random.randint(60, 100)
+            self.plot_heart_rate_data(heart_rate)
+            time.sleep(1)
+
+
+    # Starts any thread as a target and adds it to a list of threads for tracking
+    # Currently isn't used, but might be needed to ensure threads are killed later
+    def start_thread(self, target):
+        print(f"Starting thread for {target.__name__}")
+
+        if asyncio.iscoroutinefunction(target):
+            loop = asyncio.new_event_loop()
+            threading.Thread(target=self.run_async, args=(target, loop), daemon=True).start()
+        else:
+            thread = threading.Thread(target=target, daemon=True)
+            thread.start()
+            self.threads.append(thread)
+
+
+    # Runs an async function in a new event loop
+    def run_async(self, target, loop):
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(target())
+    
+
+    # Called by self.run_blue_tooth_scan to list Bluetooth devices
+    async def list_bluetooth_devices(self):
+        try:
+            # Clear the listbox
+            if not self.is_closing_application:
+                self.device_listbox.delete(0, tk.END)
+
+            # Add a scanning message
+            if not self.is_closing_application:
+                self.device_listbox.insert(tk.END, "Scanning for Bluetooth devices...")
+
+            # Discover Bluetooth devices
+            devices = await BleakScanner.discover()
+            max_name_length = 10
+
+            # Iterate once to obtain the max name length
+            # have to iterate twice b/c 1st name might be shorter than 2nd name
+            for device in devices:
+                selected_device_name = device.name if device.name is not None else "Unknown Name"
+                max_name_length = max(max_name_length, len(selected_device_name) + 2)
+
+            # Iterate again to insert devices into the listbox
+            for device in devices:
+                if not self.is_closing_application:                
+                    selected_device_name = device.name if device.name is not None else "Unknown Name"
+                    self.device_listbox.insert(tk.END, f"{selected_device_name:<{max_name_length}} {device.address}")
+            
+            # Delete the scanning message
+            if not self.is_closing_application:
+                self.device_listbox.delete(0)
+        except TclError as e:
+            # We expect this error when the window is closed before completing.
+            print(f"TclError encountered: {e}")
+            return
+
+
+    # Returns the characteristic UUID for the heart rate service or None
+    async def search_for_characteristic_uuid(self):
+        services = await self.client.get_services()
+        for service in services:
+            if service.uuid.lower() == self.HEART_RATE_SERVICE_UUID.lower():
+                for char in service.characteristics:
+                    if char.uuid.lower() == self.HEART_RATE_CHAR_UUID.lower():
+                        return char.uuid
+        
+        return None
+
+
+    # Called when a device is selected from the Bluetooth devices listbox
+    def on_device_select(self, event):
+        selected_index = self.device_listbox.curselection()
+        if selected_index:
+            device_info = self.device_listbox.get(selected_index)
+            device_name, device_address = device_info.rsplit(" ", 1)
+            self.selected_device_name = device_name
+            self.selected_device_address = device_address
 
 
 if __name__ == "__main__":

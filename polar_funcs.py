@@ -32,7 +32,6 @@ async def set_h10_values():
         
         if global_vars.H10_CHARACTERISTIC_UUID is None:
             print("No suitable characteristic found for heart rate notifications.")
-            return
 
 
 # Attempt to connect to the Polar H10 and return the client object
