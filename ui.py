@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import tkinter as tk
+import matplotlib
 import threading
+import pyautogui
+import keyboard
 import asyncio
 import random
 import time
@@ -12,8 +15,8 @@ from matplotlib import font_manager
 from tkinter import TclError
 
 
-START_TEXT = f"Start ({CANCEL_BUTTON})"
-STOP_TEXT = f"Stop ({CANCEL_BUTTON})"
+# The minus symbol is missing from my font pack
+matplotlib.rcParams['axes.unicode_minus'] = False
 
 
 class BlueToothController:
@@ -27,28 +30,33 @@ class BlueToothController:
     HEART_RATE_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
 
     # Controls
-    start_button = "escape"
-    stop_button = "escape"
+    start_button_keybind = "escape"
+    stop_button_keybind = "escape"
 
     # Application Logic
     is_closing_application = False
+    is_bluetooth_window_open = False
     is_running = False
     client = None
     bpm_data = []
     threads = []  # List to keep track of threads
+    tasks = []  # List to keep track of asyncio tasks
 
     # Application Variables
+    START_TEXT = f"Start ({CANCEL_BUTTON})"
+    STOP_TEXT = f"Stop ({CANCEL_BUTTON})"
     SCANNING_RETRY_SLEEP = 2
     BLUETOOTH_KEEP_ALIVE_SLEEP = 5
+    LISTEN_FOR_CANCEL_SLEEP_TIME = 0.1
     bluetooth_device_verbiage = "Bluetooth Device:\n"
     
     # Design Variables
     font = "Dogica"
-    xl_font = 12
-    lg_font = 10
-    md_font = 8
-    sm_font = 6
-    xs_font = 4
+    xl_font = 11
+    lg_font = 9
+    md_font = 7
+    sm_font = 5
+    xs_font = 3
     background_color = "#DEB887"
     foreground_color = "#F5DEB3"
     start_button_color= "#6B8E23"
@@ -63,7 +71,7 @@ class BlueToothController:
     def __init__(self, root):
         self.root = root
         self.root.title("Bluetooth Controller")
-        self.root.geometry("900x600")
+        self.root.geometry("1000x700")
         self.root.config(bg=self.background_color)
         self.root.protocol("WM_DELETE_WINDOW", self.close_application)
 
@@ -74,7 +82,7 @@ class BlueToothController:
 
         # Buttons & Buttons Logic
         #   Start/Stop Button
-        self.start_stop_button = tk.Button(self.frame, text=START_TEXT, command=self.toggle_start_stop)
+        self.start_stop_button = tk.Button(self.frame, text=self.START_TEXT, command=self.toggle_start_stop)
         self.start_stop_button.grid(row=0, column=0, padx=10, pady=10)
         self.start_stop_button.config(height=2, bg=self.start_button_color, font=(self.font, self.xl_font))
 
@@ -126,15 +134,18 @@ class BlueToothController:
         self.canvas.get_tk_widget().grid(row=1, columnspan=3, padx=10, pady=10)
         self.canvas.get_tk_widget().config(bg="#8B4513")
 
+        # Listeners
+        self.start_thread(self.listen_for_toggle)
+
 
     # Stops and start the BPM measurement and subsequent actions
     def toggle_start_stop(self):
         if self.is_running:
-            self.start_stop_button.config(text=START_TEXT, bg=self.start_button_color)
+            self.start_stop_button.config(text=self.START_TEXT, bg=self.start_button_color)
             self.is_running = False
             self.stop_heart_rate_monitor()
         elif self.client is not None:
-            self.start_stop_button.config(text=STOP_TEXT, bg=self.stop_button_color)
+            self.start_stop_button.config(text=self.STOP_TEXT, bg=self.stop_button_color)
             self.is_running = True
             self.start_thread(self.run_heart_rate_monitor)
             # threading.Thread(target=self.run_heart_rate_monitor, daemon=True).start()
@@ -151,9 +162,15 @@ class BlueToothController:
 
     # Opens a new window to list available Bluetooth devices
     def open_bluetooth_devices(self):
+        if self.is_bluetooth_window_open:
+            self.scan_window.lift()
+            return
+
         self.scan_window = tk.Toplevel(self.root)
         self.scan_window.title("Available Bluetooth Devices")
         self.scan_window.config(bg=self.background_color)
+        self.scan_window.protocol("WM_DELETE_WINDOW", self.on_bluetooth_window_close)
+
 
         # Create a frame to center the elements
         self.scan_frame = tk.Frame(self.scan_window, bg=self.background_color)
@@ -178,6 +195,7 @@ class BlueToothController:
 
         # Start the Bluetooth scan
         self.start_thread(self.run_blue_tooth_scan)
+        self.is_bluetooth_window_open = True
 
 
     # Scans for Bluetooth devices and lists them by calling list_bluetooth_devices
@@ -212,8 +230,17 @@ class BlueToothController:
             except Exception as e:
                 print(f"Connection error: {e}")
                 self.client = None
+                self.selected_device_name = "Not Connected"
+                self.bluetooth_text.config(text=f"{self.bluetooth_device_verbiage}{self.selected_device_name}")
             # Sleep before trying a keep alive again
             await asyncio.sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
+
+
+    def heart_rate_handler(self, sender, data):
+        heart_rate = data[1]
+        print(f"Heart Rate: {heart_rate} bpm")
+        self.plot_heart_rate_data(heart_rate)
+        self.perform_action_per_bpm(heart_rate)
 
 
     # Begins reading heart rate data from the Bluetooth device
@@ -225,27 +252,57 @@ class BlueToothController:
             print("No characteristic UUID found. Does the device support Heart Rate Measurement?")
             return
 
-        def heart_rate_handler(sender, data):
-            heart_rate = data[1]
-            self.plot_heart_rate_data(heart_rate)
-            print(f"Heart Rate: {heart_rate} bpm")
-
-        await self.client.start_notify(self.selected_device_characteristic_uuid, heart_rate_handler)
+        await self.client.start_notify(self.selected_device_characteristic_uuid, self.heart_rate_handler)
         try:
             while await self.client.is_connected() and self.is_running and not self.is_closing_application:
                 await asyncio.sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
         finally:
-            await self.client.stop_notify(self.selected_device_characteristic_uuid)
+            try:
+                await self.client.stop_notify(self.selected_device_characteristic_uuid)
+            except KeyError as e:
+                print(f"KeyError encountered while stopping notifications: {e}")
 
 
+    # Performs the actual actions of the application based on BPM
+    async def perform_action_per_bpm(self, heart_rate):
+        action_delay = 60 / heart_rate
+
+        # Simulate a screen click
+        def click_screen():
+            time.sleep(action_delay)
+            pyautogui.click()
+
+        self.start_thread(click_screen)
+
+    
     def stop_heart_rate_monitor(self):
         self.is_running = False
-        asyncio.run_coroutine_threadsafe(self.client.stop_notify(self.selected_device_characteristic_uuid), asyncio.get_event_loop())
+        try:
+            asyncio.run_coroutine_threadsafe(self.client.stop_notify(self.selected_device_characteristic_uuid), asyncio.get_event_loop())
+        except KeyError as e:
+            print(f"KeyError encountered while stopping notifications: {e}")
+
+
+    # Listens for keyboard strokes to start and stop the heart rate monitor
+    async def listen_for_toggle(self):
+        print(f"Listening for '{self.start_button_keybind}' keybind...")
+        while not self.is_closing_application:
+            if keyboard.is_pressed(self.stop_button_keybind):
+                print("Cancel button pressed. Toggling...")
+                self.toggle_start_stop()
+            await asyncio.sleep(self.LISTEN_FOR_CANCEL_SLEEP_TIME)
 
 
     # Used to close the application properly
     def close_application(self):
         self.is_closing_application = True
+        
+        for task in self.tasks:
+            task.cancel()
+
+        for thread in self.threads:
+            thread.join(timeout=1)
+
         self.root.destroy()
         exit(0)
 
@@ -280,24 +337,23 @@ class BlueToothController:
 
 
     # Starts any thread as a target and adds it to a list of threads for tracking
-    # Currently isn't used, but might be needed to ensure threads are killed later
     def start_thread(self, target):
         print(f"Starting thread for {target.__name__}")
 
         if asyncio.iscoroutinefunction(target):
-            loop = asyncio.new_event_loop()
-            threading.Thread(target=self.run_async, args=(target, loop), daemon=True).start()
+            thread = threading.Thread(target=self.run_async, args=(target,), daemon=True)
         else:
             thread = threading.Thread(target=target, daemon=True)
-            thread.start()
-            self.threads.append(thread)
 
+        thread.start()
+        self.threads.append(thread)
 
     # Runs an async function in a new event loop
-    def run_async(self, target, loop):
+    def run_async(self, target):
+        loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(target())
-    
+
 
     # Called by self.run_blue_tooth_scan to list Bluetooth devices
     async def list_bluetooth_devices(self):
@@ -337,6 +393,11 @@ class BlueToothController:
 
     # Returns the characteristic UUID for the heart rate service or None
     async def search_for_characteristic_uuid(self):
+        # Ensure the client is connected before fetching services
+        if not self.client or not await self.client.is_connected():
+            print("Bluetooth client is not connected.")
+            return None
+
         services = await self.client.get_services()
         for service in services:
             if service.uuid.lower() == self.HEART_RATE_SERVICE_UUID.lower():
@@ -355,6 +416,11 @@ class BlueToothController:
             device_name, device_address = device_info.rsplit(" ", 1)
             self.selected_device_name = device_name
             self.selected_device_address = device_address
+    
+
+    def on_bluetooth_window_close(self):
+        self.is_bluetooth_window_open = False
+        self.scan_window.destroy()
 
 
 if __name__ == "__main__":
