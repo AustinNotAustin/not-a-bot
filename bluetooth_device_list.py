@@ -19,6 +19,8 @@ class BluetoothDeviceList:
 
     is_bluetooth_window_open = False
 
+    scan_window = None
+
 
     def __init__(self, parent_instance, bluetooth_loop, bluetooth_controller):
         self.parent_instance = parent_instance
@@ -56,7 +58,7 @@ class BluetoothDeviceList:
         self.button_frame = tk.Frame(self.scan_frame, bg=ui.background_color)
         self.button_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=10, pady=10)
 
-        self.connect_button = tk.Button(self.button_frame, text="Connect", command=self.connect_to_device())
+        self.connect_button = tk.Button(self.button_frame, text="Connect", command=self.connect_to_device)
         self.connect_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
         self.connect_button.pack(side=tk.LEFT, padx=10, pady=10)
 
