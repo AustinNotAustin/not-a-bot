@@ -155,6 +155,7 @@ class NotABotUI:
 
     # Toggles the connect bluetooth connection / bluetooth device list
     def toggle_bluetooth_devices(self):
+        print("Toggling Bluetooth devices...")
         if self.bluetooth_controller.is_bluetooth_device_connected:
             self.bluetooth_controller.disconnect_bluetooth_device()
         else:
