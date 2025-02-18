@@ -94,7 +94,6 @@ class BluetoothController:
         
         except Exception as e:
             print(f"Error encountered while starting notifications:\n{e}")
-        finally:
             self.stop_heart_rate_monitor()
 
 
