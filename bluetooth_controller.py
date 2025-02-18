@@ -103,7 +103,7 @@ class BluetoothController:
                 self.client.stop_notify(
                     self.selected_device_characteristic_uuid
                 ),
-                asyncio.get_event_loop()
+                self.bluetooth_loop
             )
         except Exception as e:
             print(f"Error encountered while stopping notifications: {e}")

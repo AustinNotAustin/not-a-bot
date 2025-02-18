@@ -13,11 +13,10 @@ import time
 import os
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from global_vars import CANCEL_BUTTON
-from matplotlib import font_manager
-from tkinter import TclError
 from bluetooth_device_list import BluetoothDeviceList
 from bluetooth_controller import BluetoothController
+from global_vars import CANCEL_BUTTON
+from matplotlib import font_manager
 
 
 # The minus symbol is missing from my font pack
@@ -167,15 +166,15 @@ class NotABotUI:
             self.bluetooth_device_list.open_bluetooth_devices()
 
     # Performs the actual actions of the application based on BPM
-    async def perform_action_per_bpm(self, heart_rate):
+    def perform_action_per_bpm(self, heart_rate):
         action_delay = 60 / heart_rate
 
         # Simulate a screen click
-        def click_screen():
-            time.sleep(action_delay)
+        async def click_screen():
+            await asyncio.sleep(action_delay)
             pyautogui.click()
 
-        click_screen()
+        asyncio.run_coroutine_threadsafe(click_screen(), self.bluetooth_loop)
 
 
     # Listens for keyboard strokes to start and stop the heart rate monitor / clicker
