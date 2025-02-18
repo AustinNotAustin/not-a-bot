@@ -89,7 +89,7 @@ class NotABotUI:
         self.start_stop_button.config(height=2, bg=ui.start_button_color, font=(ui.font, ui.xl_font))
 
         #   Connect Button
-        self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=self.bluetooth_device_list.open_bluetooth_devices)
+        self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=self.toggle_bluetooth_devices)
         self.bluetooth_devices_button.grid(row=0, column=1, padx=10, pady=10)
         self.bluetooth_devices_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
 
