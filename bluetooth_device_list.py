@@ -117,8 +117,8 @@ class BluetoothDeviceList:
         if selected_index:
             device_info = self.device_listbox.get(selected_index)
             device_name, device_address = device_info.rsplit(" ", 1)
-            self.selected_device_name = device_name
-            self.selected_device_address = device_address
+            self.bluetooth_controller.selected_device_name = device_name
+            self.bluetooth_controller.selected_device_address = device_address
 
     
     def on_bluetooth_window_close(self):
