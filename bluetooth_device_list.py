@@ -128,4 +128,3 @@ class BluetoothDeviceList:
     def bluetooth_window_close(self):
         self.is_bluetooth_window_open = False
         self.scan_window.destroy()
-        self.parent_instance.bluetooth_devices_button.config(text="Connect Device")
