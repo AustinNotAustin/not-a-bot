@@ -69,7 +69,7 @@ class BluetoothController:
                     print("Bluetooth device is kept alive.")
             except Exception as e:
                 print(f"Connection error: {e}")
-                self.disconnect_bluetooth_device()
+                await self.disconnect_bluetooth_device()
             # Sleep before trying a keep alive again
             await asyncio.sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
     
@@ -112,13 +112,13 @@ class BluetoothController:
 
 
     # Handle a situation where the bluetooth device disconnects
-    def disconnect_bluetooth_device(self):
+    async def disconnect_bluetooth_device(self):
         print("Disconnecting from Bluetooth device...")
         try:
-            self.client.disconnect()
+            await self.client.disconnect()
         except:
             pass
-        self.client = None
+
         self.selected_device_name = "Not Connected"
         self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}{self.selected_device_name}")
         self.parent_instance.bluetooth_devices_button.config(text="Connect Device")
@@ -128,6 +128,8 @@ class BluetoothController:
             self.stop_heart_rate_monitor()
 
         self.parent_instance.stop_actions()
+
+        self.client = None
 
 
     # # # # # # # #

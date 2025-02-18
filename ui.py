@@ -89,7 +89,7 @@ class NotABotUI:
         self.start_stop_button.config(height=2, bg=ui.start_button_color, font=(ui.font, ui.xl_font))
 
         #   Connect Button
-        self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=self.toggle_bluetooth_devices)
+        self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=lambda: asyncio.run_coroutine_threadsafe(self.toggle_bluetooth_devices(), self.bluetooth_loop))
         self.bluetooth_devices_button.grid(row=0, column=1, padx=10, pady=10)
         self.bluetooth_devices_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
 
@@ -159,10 +159,10 @@ class NotABotUI:
 
 
     # Toggles the connect bluetooth connection / bluetooth device list
-    def toggle_bluetooth_devices(self):
+    async def toggle_bluetooth_devices(self):
         print("Toggling Bluetooth devices...")
         if self.bluetooth_controller.is_bluetooth_device_connected:
-            self.bluetooth_controller.disconnect_bluetooth_device()
+            await self.bluetooth_controller.disconnect_bluetooth_device()
         else:
             self.bluetooth_device_list.open_bluetooth_devices()
 
