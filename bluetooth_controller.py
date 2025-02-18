@@ -44,9 +44,10 @@ class BluetoothController:
                 print("Client is None. Attempting to connect...")
                 self.client = BleakClient(self.selected_device_address)
                 await self.client.connect()
-                await self.bluetooth_keep_alive()
 
                 self.parent_instance.root.bluetooth_text.config(text=f"{self.parent_instance.root.bluetooth_device_verbiage}{self.selected_device_name}")
+
+                asyncio.create_task(self.bluetooth_keep_alive())
 
             except Exception as e:
                 print(f"Connection error: {e}. Retrying in {self.BLUETOOTH_RECONNECT_RETRY_SLEEP} seconds...")
