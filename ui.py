@@ -149,7 +149,7 @@ class NotABotUI:
         
         else:
             self.start_stop_button.config(text=self.STOP_TEXT, bg=ui.stop_button_color)
-            self.bluetooth_controller.start_heart_rate_monitor()
+            asyncio.run_coroutine_threadsafe(self.bluetooth_controller.start_heart_rate_monitor(), self.bluetooth_loop)
     
 
     # Stops the BPM measuyrement and clicking actions of the application
