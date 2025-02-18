@@ -145,12 +145,17 @@ class NotABotUI:
             self.bluetooth_device_list.open_bluetooth_devices()
 
         elif self.bluetooth_controller.is_heart_rate_monitor_running:
-            self.start_stop_button.config(text=self.START_TEXT, bg=ui.start_button_color)
-            self.bluetooth_controller.stop_heart_rate_monitor()
+            self.stop_actions()
         
         else:
             self.start_stop_button.config(text=self.STOP_TEXT, bg=ui.stop_button_color)
             self.bluetooth_controller.start_heart_rate_monitor()
+    
+
+    # Stops the BPM measuyrement and clicking actions of the application
+    def stop_actions(self):
+        self.start_stop_button.config(text=self.START_TEXT, bg=ui.start_button_color)
+        self.bluetooth_controller.stop_heart_rate_monitor()
 
 
     # Toggles the connect bluetooth connection / bluetooth device list

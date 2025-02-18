@@ -124,7 +124,7 @@ class BluetoothController:
         if self.is_heart_rate_monitor_running:
             self.stop_heart_rate_monitor()
 
-        self.parent_instance.toggle_start_stop()
+        self.parent_instance.stop_actions()
 
 
     # # # # # # # #
