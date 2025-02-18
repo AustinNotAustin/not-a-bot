@@ -1,4 +1,5 @@
 font = "Dogica"
+font_path = "./font/Dogica.ttf"
 
 xl_font = 11
 lg_font = 9

@@ -97,7 +97,11 @@ class BluetoothDeviceList:
 
         except Exception as e:
             # We expect this error if the window is closed before completing.
-            print(f"Error while listing bluetooth devices:\n{e}")
+            error_message = "Error while listing bluetooth devices:"
+            print(f"{error_message}\n{e}")
+            self.device_listbox.delete(0)
+            self.device_listbox.insert(tk.END, error_message)
+            self.device_listbox.insert(tk.END, e)
             return
     
 

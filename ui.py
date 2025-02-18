@@ -1,5 +1,6 @@
 import ui_design_variables as ui
 import matplotlib.pyplot as plt
+import tkinter.font as tkFont
 import tkinter as tk
 
 import matplotlib
@@ -9,6 +10,7 @@ import keyboard
 import asyncio
 import random
 import time
+import os
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from global_vars import CANCEL_BUTTON
@@ -51,6 +53,16 @@ class NotABotUI:
         self.bluetooth_controller = BluetoothController(self, self.bluetooth_loop)
         self.bluetooth_device_list = BluetoothDeviceList(self, self.bluetooth_loop, self.bluetooth_controller)
         
+        # Make a custom font
+        self.custom_font = tkFont.Font(family=ui.font, size=ui.lg_font)
+        font_path = "path/to/your/font.ttf"  # Update with your actual path
+
+        # Register the font in Tkinter
+        if os.path.exists(font_path):
+            self.custom_font.actual()
+            root.tk.call("font", "create", ui.font, "-family", ui.font, "-size", ui.lg_font)
+            root.tk.call("font", "configure", ui.font, "-family", ui.font)
+
         # Call async functions using the bluetooth_loop like so:
         #  asyncio.run_coroutine_threadsafe(async_function(), self.bluetooth_loop)
         self.create_ui(root)
@@ -150,7 +162,7 @@ class NotABotUI:
             time.sleep(action_delay)
             pyautogui.click()
 
-        self.start_thread(click_screen, True)
+        click_screen()
 
 
     # Listens for keyboard strokes to start and stop the heart rate monitor / clicker
