@@ -13,7 +13,7 @@ Includes a Connect and Refresh button
 '''
 class BluetoothDeviceList:
 
-    parent_ui_instance = None
+    parent_instance = None
     bluetooth_loop = None
     bluetooth_controller = None
 
@@ -43,7 +43,7 @@ class BluetoothDeviceList:
         self.scan_window = tk.Toplevel(self.parent_instance.root)
         self.scan_window.title("Available Bluetooth Devices")
         self.scan_window.config(bg=ui.background_color)
-        self.scan_window.protocol("WM_DELETE_WINDOW", self.on_bluetooth_window_close)
+        self.scan_window.protocol("WM_DELETE_WINDOW", self.bluetooth_window_close)
 
         # Create a frame to center the elements
         self.scan_frame = tk.Frame(self.scan_window, bg=ui.background_color)
@@ -112,7 +112,7 @@ class BluetoothDeviceList:
         self.device_listbox.delete(0, tk.END)
         self.device_listbox.insert(tk.END, "Attempting to connect...")
         await self.bluetooth_controller.connect_bluetooth()
-        self.on_bluetooth_window_close()
+        self.bluetooth_window_close()
         
 
     # Called when a device is selected from the Bluetooth devices listbox
@@ -125,6 +125,7 @@ class BluetoothDeviceList:
             self.bluetooth_controller.selected_device_address = device_address
 
     
-    def on_bluetooth_window_close(self):
+    def bluetooth_window_close(self):
         self.is_bluetooth_window_open = False
         self.scan_window.destroy()
+        self.parent_instance.bluetooth_devices_button.config(text="Connect Device")

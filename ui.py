@@ -153,6 +153,13 @@ class NotABotUI:
             self.bluetooth_controller.start_heart_rate_monitor()
 
 
+    # Toggles the connect bluetooth connection / bluetooth device list
+    def toggle_bluetooth_devices(self):
+        if self.bluetooth_controller.is_bluetooth_device_connected:
+            self.bluetooth_controller.disconnect_bluetooth_device()
+        else:
+            self.bluetooth_device_list.open_bluetooth_devices()
+
     # Performs the actual actions of the application based on BPM
     async def perform_action_per_bpm(self, heart_rate):
         action_delay = 60 / heart_rate
