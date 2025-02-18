@@ -58,7 +58,7 @@ class BluetoothDeviceList:
         self.button_frame = tk.Frame(self.scan_frame, bg=ui.background_color)
         self.button_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=10, pady=10)
 
-        self.connect_button = tk.Button(self.button_frame, text="Connect", command=self.connect_to_device)
+        self.connect_button = tk.Button(self.button_frame, text="Connect", command=lambda: asyncio.run_coroutine_threadsafe(self.connect_to_device(), self.bluetooth_loop))
         self.connect_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
         self.connect_button.pack(side=tk.LEFT, padx=10, pady=10)
 
@@ -108,16 +108,12 @@ class BluetoothDeviceList:
     
 
     # Calls the appropriate controller function to connect to the selected device
-    def connect_to_device(self):
+    async def connect_to_device(self):
         self.device_listbox.delete(0, tk.END)
         self.device_listbox.insert(tk.END, "Attempting to connect...")
-        future = asyncio.run_coroutine_threadsafe(self.bluetooth_controller.connect_bluetooth(), self.bluetooth_loop)
-        try:
-            future.result()
-            self.on_bluetooth_window_close()
-        except Exception as e:
-            print(f"Error encountered while connecting to device:\n{e}")
-
+        await self.bluetooth_controller.connect_bluetooth()
+        self.on_bluetooth_window_close()
+        
 
     # Called when a device is selected from the Bluetooth devices listbox
     def on_device_select(self, event):
