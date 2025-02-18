@@ -109,8 +109,14 @@ class BluetoothDeviceList:
 
     # Calls the appropriate controller function to connect to the selected device
     def connect_to_device(self):
-        asyncio.run_coroutine_threadsafe(self.bluetooth_controller.connect_bluetooth(), self.bluetooth_loop)
-        self.on_bluetooth_window_close()
+        future = asyncio.run_coroutine_threadsafe(self.bluetooth_controller.connect_bluetooth(), self.bluetooth_loop)
+        try:
+            self.device_listbox.delete(0, tk.END)
+            self.device_listbox.insert(tk.END, "Attempting to connect...")
+            future.result()
+            self.on_bluetooth_window_close()
+        except Exception as e:
+            print(f"Error encountered while connecting to device:\n{e}")
 
 
     # Called when a device is selected from the Bluetooth devices listbox
