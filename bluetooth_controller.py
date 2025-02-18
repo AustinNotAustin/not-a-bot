@@ -45,13 +45,13 @@ class BluetoothController:
                 self.client = BleakClient(self.selected_device_address)
                 await self.client.connect()
 
-                self.parent_instance.root.bluetooth_text.config(text=f"{self.parent_instance.root.bluetooth_device_verbiage}{self.selected_device_name}")
+                self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}{self.selected_device_name}")
 
                 asyncio.create_task(self.bluetooth_keep_alive())
 
             except Exception as e:
                 print(f"Connection error: {e}. Retrying in {self.BLUETOOTH_RECONNECT_RETRY_SLEEP} seconds...")
-                self.parent_instance.root.bluetooth_text.config(text=f"{self.parent_instance.root.bluetooth_device_verbiage}Connecting...")
+                self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}Connecting...")
                 await asyncio.sleep(self.BLUETOOTH_RECONNECT_RETRY_SLEEP)
     
 
@@ -112,9 +112,10 @@ class BluetoothController:
 
     # Handle a situation where the bluetooth device disconnects
     def handle_disconnection(self):
+        print("Disconnecting from Bluetooth device...")
         self.client = None
         self.selected_device_name = "Not Connected"
-        self.parent_instance.root.bluetooth_text.config(text=f"{self.parent_instance.root.bluetooth_device_verbiage}{self.selected_device_name}")
+        self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}{self.selected_device_name}")
         self.is_bluetooth_device_connected = False
 
         if self.is_heart_rate_monitor_running:
