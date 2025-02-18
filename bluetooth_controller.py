@@ -58,10 +58,12 @@ class BluetoothController:
     async def bluetooth_keep_alive(self):
         while self.client is not None:
             try:
-                if not await self.client.is_connected():
+                if not self.client.is_connected:
                     await self.client.connect()
                     self.is_bluetooth_device_connected = True
                     print(f"Reconnected to {self.selected_device_name} ({self.selected_device_address})")
+                else:
+                    print("Bluetooth device is kept alive.")
             except Exception as e:
                 print(f"Connection error: {e}")
                 self.handle_disconnection()
