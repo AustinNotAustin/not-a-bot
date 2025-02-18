@@ -115,6 +115,10 @@ class BluetoothController:
     # Handle a situation where the bluetooth device disconnects
     def disconnect_bluetooth_device(self):
         print("Disconnecting from Bluetooth device...")
+        try:
+            self.client.disconnect()
+        except:
+            pass
         self.client = None
         self.selected_device_name = "Not Connected"
         self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}{self.selected_device_name}")
