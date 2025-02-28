@@ -2,6 +2,7 @@ import ui_design_variables as ui
 import matplotlib.pyplot as plt
 import tkinter.font as tkFont
 import tkinter as tk
+import numpy as np
 
 import matplotlib
 import threading
@@ -16,11 +17,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from bluetooth_device_list import BluetoothDeviceList
 from bluetooth_controller import BluetoothController
 from matplotlib import font_manager
+from PIL import Image, ImageTk
 
 
 # The minus symbol is missing from my font pack
 matplotlib.rcParams['axes.unicode_minus'] = False
-CANCEL_BUTTON = "escape"
+CANCEL_BUTTON = "esc"
 DEBUG = True
 
 
@@ -38,6 +40,7 @@ class NotABotUI:
     is_closing_application = False
     is_running = False # Used for development/debug purposes
     bpm_data = []
+    ekg_data = []
     threads = []  # List to keep track of threads
     tasks = []  # List to keep track of asyncio tasks
 
@@ -74,7 +77,7 @@ class NotABotUI:
 
     def create_ui(self, root):
         self.root.title("Bluetooth Controller")
-        self.root.geometry("1000x700")
+        self.root.geometry("820x990")
         self.root.config(bg=ui.background_color)
         self.root.protocol("WM_DELETE_WINDOW", self.close_application)
 
@@ -83,28 +86,33 @@ class NotABotUI:
         self.frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         self.frame.config(bg=ui.foreground_color)
 
-        # Buttons & Buttons Logic
-        #   Start/Stop Button
-        self.start_stop_button = tk.Button(self.frame, text=self.START_TEXT, command=self.toggle_start_stop)
-        self.start_stop_button.grid(row=0, column=0, padx=10, pady=10)
-        self.start_stop_button.config(height=2, bg=ui.start_button_color, font=(ui.font, ui.xl_font))
+        # Heart and EKG content
+        original_heart_image = Image.open("./img/heart.png")
+        heart_image = original_heart_image.resize((200, 200), Image.NEAREST)
+        beating_heart_image = original_heart_image.resize((210, 210), Image.NEAREST)
+        self.heart_image = ImageTk.PhotoImage(heart_image)
+        heart_label = tk.Label(self.frame, image=self.heart_image, bg=ui.foreground_color)
+        heart_label.grid(row=0, columnspan=3, padx=10, pady=10)
 
-        #   Connect Button
-        self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=lambda: asyncio.run_coroutine_threadsafe(self.toggle_bluetooth_devices(), self.bluetooth_loop))
-        self.bluetooth_devices_button.grid(row=0, column=1, padx=10, pady=10)
-        self.bluetooth_devices_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
+        # EKG plot
+        self.ekg_fig, self.ekg_ax = plt.subplots()
+        self.ekg_fig.patch.set_facecolor(ui.graph_background_color)
+        self.ekg_ax.set_facecolor(ui.graph_foreground_color)
+        self.ekg_ax.set_title('EKG')
+        self.ekg_ax.set_xlabel('Time (Seconds)')
+        self.ekg_ax.set_ylabel('Amplitude')
+        self.ekg_line, = self.ekg_ax.plot([], [], color=ui.heart_rate_line_color)
 
-        #  Bluetooth Device Texts
-        self.bluetooth_text = tk.Message(self.frame, text=f"{self.bluetooth_device_verbiage}{self.bluetooth_controller.selected_device_name}", width=200)
-        self.bluetooth_text.grid(row=0, column=2, padx=10, pady=10)
-        self.bluetooth_text.config(bg=ui.foreground_color, font=(ui.font, ui.lg_font))
+        self.ekg_canvas = FigureCanvasTkAgg(self.ekg_fig, master=self.frame)
+        self.ekg_canvas.get_tk_widget().config(bg=ui.foreground_color)
+        self.ekg_canvas.get_tk_widget().grid(row=1, columnspan=3, padx=10, pady=10)
 
         # Matplotlib figure and axis
         self.fig, self.ax = plt.subplots()
         self.fig.patch.set_facecolor(ui.graph_background_color)
 
         # Matplotlib graph title and labels
-        matplotlib_font = font_manager.FontProperties(fname="./font/Dogica.ttf")
+        matplotlib_font = font_manager.FontProperties(fname=ui.font_path)
 
         self.ax.title.set_fontproperties(matplotlib_font)
         self.ax.title.set_fontsize(ui.lg_font)
@@ -134,8 +142,25 @@ class NotABotUI:
 
         # Canvas graph and plotted lines
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.canvas.get_tk_widget().grid(row=1, columnspan=3, padx=10, pady=10)
         self.canvas.get_tk_widget().config(bg="#8B4513")
+        # self.canvas.get_tk_widget().grid(row=1, columnspan=2, padx=10, pady=10)
+
+
+        # Buttons & Buttons Logic
+        #   Start/Stop Button
+        self.start_stop_button = tk.Button(self.frame, text=self.START_TEXT, command=self.toggle_start_stop)
+        self.start_stop_button.grid(row=2, column=0, padx=10, pady=10)
+        self.start_stop_button.config(height=2, bg=ui.start_button_color, font=(ui.font, ui.xl_font))
+
+        #   Connect Button
+        self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=lambda: asyncio.run_coroutine_threadsafe(self.toggle_bluetooth_devices(), self.bluetooth_loop))
+        self.bluetooth_devices_button.grid(row=2, column=1, padx=10, pady=10)
+        self.bluetooth_devices_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
+
+        #  Bluetooth Device Texts
+        self.bluetooth_text = tk.Message(self.frame, text=f"{self.bluetooth_device_verbiage}{self.bluetooth_controller.selected_device_name}", width=200)
+        self.bluetooth_text.grid(row=3, columnspan=2, padx=10, pady=10)
+        self.bluetooth_text.config(bg=ui.foreground_color, font=(ui.font, ui.lg_font))
 
 
     # Stops and start the BPM measurement and subsequent actions
@@ -222,16 +247,22 @@ class NotABotUI:
         self.line.set_ydata(self.bpm_data)
         self.ax.relim()
         self.ax.autoscale_view()
+        self.ax.set_ylim(40,160)
         self.canvas.draw()
 
 
     # Simulate heart rate data for demonstration purposes
     async def simulate_heart_rate(self):
+        heart_rate_change = 3
+        heart_rate_change_chance = 0.4
         while self.is_running and not self.is_closing_application:
             last_heart_rate = self.bpm_data[-1] if self.bpm_data else random.randint(60, 100)
-            heart_rate = random.randint(60, 100)
+            if random.random() > heart_rate_change_chance:
+                heart_rate = last_heart_rate
+            else:
+                heart_rate = random.randint(max(60, last_heart_rate - heart_rate_change), min(100, last_heart_rate + heart_rate_change))
             self.plot_heart_rate_data(heart_rate)
-            await asyncio.sleep(1)
+            await asyncio.sleep(.1)
 
     def toggle_simulate_run_heart_rate_monitor(self):
         if self.is_running:
@@ -241,8 +272,39 @@ class NotABotUI:
             self.is_running = True
             self.start_stop_button.config(text=self.STOP_TEXT, bg=ui.stop_button_color)
             asyncio.run_coroutine_threadsafe(self.simulate_heart_rate(), self.bluetooth_loop)
+            
+            asyncio.run_coroutine_threadsafe(self.simulate_ekg(), self.bluetooth_loop)
 
-        
+
+    async def simulate_ekg(self):
+        self.current_bpm = 60
+        """Generates a more realistic EKG waveform based on BPM"""
+        while self.is_running and not self.is_closing_application:
+            bpm = max(40, min(self.current_bpm, 180))  # Clamp BPM to reasonable range
+            beat_interval = 60 / bpm  # Convert BPM to seconds per beat
+            sample_rate = 100  # Samples per second
+            t = np.linspace(0, beat_interval, int(sample_rate * beat_interval))
+
+            # Simulated EKG signal: P-wave, QRS complex, T-wave
+            ekg_wave = (
+                0.05 * np.sin(2 * np.pi * 2 * t) +  # Smaller P wave
+                -0.4 * np.exp(-100 * (t - beat_interval * 0.2) ** 2) +  # Q dip
+                1.0 * np.exp(-100 * (t - beat_interval * 0.3) ** 2) +  # R peak
+                -0.6 * np.exp(-100 * (t - beat_interval * 0.4) ** 2) +  # S dip
+                0.15 * np.sin(2 * np.pi * 1.5 * (t - beat_interval * 0.5))  # Smaller T wave
+            )
+
+            for value in ekg_wave:
+                self.ekg_data.append(value)
+                if len(self.ekg_data) > 100:
+                    self.ekg_data.pop(0)
+
+                self.ekg_line.set_xdata(range(len(self.ekg_data)))
+                self.ekg_line.set_ydata(self.ekg_data)
+                self.ekg_ax.relim()
+                self.ekg_ax.autoscale_view()
+                self.ekg_canvas.draw()
+                await asyncio.sleep(beat_interval / len(ekg_wave))  # Sync with BPM
 
 
 if __name__ == "__main__":

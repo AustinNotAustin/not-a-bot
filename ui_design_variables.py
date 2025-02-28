@@ -1,5 +1,5 @@
-font = "Dogica"
-font_path = "./font/Dogica.ttf"
+font = "Coolvetica"
+font_path = "./font/Coolvetica.otf"
 
 xl_font = 11
 lg_font = 9
