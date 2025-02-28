@@ -228,9 +228,10 @@ class NotABotUI:
     # Simulate heart rate data for demonstration purposes
     async def simulate_heart_rate(self):
         while self.is_running and not self.is_closing_application:
+            last_heart_rate = self.bpm_data[-1] if self.bpm_data else random.randint(60, 100)
             heart_rate = random.randint(60, 100)
             self.plot_heart_rate_data(heart_rate)
-            asyncio.sleep(1)
+            await asyncio.sleep(1)
 
     def toggle_simulate_run_heart_rate_monitor(self):
         if self.is_running:
