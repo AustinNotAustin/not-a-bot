@@ -36,7 +36,7 @@ class NotABotUI:
     bluetooth_device_list = None
     bluetooth_controller = None
     bluetooth_loop = None
-    current_bpm = 100
+    current_bpm = 0
 
     is_closing_application = False
     is_running = False # Used for development/debug purposes
@@ -89,20 +89,36 @@ class NotABotUI:
 
         # Heart and EKG content
         original_heart_image = Image.open("./img/heart.png")
-        heart_image = original_heart_image.resize((200, 200), Image.NEAREST)
-        beating_heart_image = original_heart_image.resize((210, 210), Image.NEAREST)
-        self.heart_image = ImageTk.PhotoImage(heart_image)
-        heart_label = tk.Label(self.frame, image=self.heart_image, bg=ui.foreground_color)
-        heart_label.grid(row=0, columnspan=3, padx=10, pady=10)
+        self.small_heart_image = original_heart_image.resize((150, 150), Image.NEAREST)
+        self.big_heart_image = original_heart_image.resize((160, 160), Image.NEAREST)
+        self.is_big_heart = True
+
+        # Fixed frame for the heart to prevent window re-sizing
+        self.heart_frame = tk.Frame(self.frame, width=160, height=160, bg=ui.foreground_color)
+        self.heart_frame.grid(row=0, columnspan=3, padx=10, pady=0)
+        self.heart_frame.grid_propagate(False)
+
+        self.heart_image = ImageTk.PhotoImage(self.big_heart_image)
+        self.heart_label = tk.Label(self.heart_frame, image=self.heart_image, bg=ui.foreground_color)
+        self.heart_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)  # Center in the frame
+
+        # BPM Display Label
+        self.bpm_label = tk.Label(
+            self.frame,
+            text=f"BPM: {self.current_bpm}",
+            bg=ui.foreground_color,
+            font=(ui.font, ui.lg_font)
+        )
+        self.bpm_label.grid(row=1, column=0, padx=10, pady=0)
 
         # EKG Canvas
         self.ekg_canvas = tk.Canvas(
             self.frame, 
-            width=300, 
-            height=200, 
+            width=240, 
+            height=160, 
             bg=ui.graph_background_color
         )
-        self.ekg_canvas.grid(row=1, columnspan=3, padx=10, pady=10)
+        self.ekg_canvas.grid(row=2, columnspan=3, padx=10, pady=0)
         self.ekg_data = []
 
         # Matplotlib figure and axis
@@ -141,24 +157,47 @@ class NotABotUI:
         # Canvas graph and plotted lines
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
         self.canvas.get_tk_widget().config(bg="#8B4513")
-        # self.canvas.get_tk_widget().grid(row=1, columnspan=2, padx=10, pady=10)
 
 
         # Buttons & Buttons Logic
         #   Start/Stop Button
         self.start_stop_button = tk.Button(self.frame, text=self.START_TEXT, command=self.toggle_start_stop)
-        self.start_stop_button.grid(row=2, column=0, padx=10, pady=10)
+        self.start_stop_button.grid(row=3, column=0, padx=10, pady=10)
         self.start_stop_button.config(height=2, bg=ui.start_button_color, font=(ui.font, ui.xl_font))
 
         #   Connect Button
         self.bluetooth_devices_button = tk.Button(self.frame, text="Connect Device", command=lambda: asyncio.run_coroutine_threadsafe(self.toggle_bluetooth_devices(), self.bluetooth_loop))
-        self.bluetooth_devices_button.grid(row=2, column=1, padx=10, pady=10)
+        self.bluetooth_devices_button.grid(row=3, column=1, padx=10, pady=10)
         self.bluetooth_devices_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
 
         #  Bluetooth Device Texts
         self.bluetooth_text = tk.Message(self.frame, text=f"{self.bluetooth_device_verbiage}{self.bluetooth_controller.selected_device_name}", width=200)
-        self.bluetooth_text.grid(row=3, columnspan=2, padx=10, pady=10)
+        self.bluetooth_text.grid(row=4, columnspan=2, padx=10, pady=10)
         self.bluetooth_text.config(bg=ui.foreground_color, font=(ui.font, ui.lg_font))
+
+
+    def flatline_ekg(self):
+        print("Cleaning up EKG visualization...")
+        # Clear the canvas
+        self.ekg_canvas.delete("ekg")
+
+        # Reset the baseline
+        canvas_width = self.ekg_canvas.winfo_width() or 300
+        canvas_height = self.ekg_canvas.winfo_height() or 200
+
+        self.ekg_canvas.create_line(
+            0, canvas_height / 1.5, 
+            canvas_width, canvas_height / 1.5, 
+            fill=ui.heart_rate_line_color, 
+            width=3, 
+            tags="ekg"
+        )
+        
+        # Make sure the heart is in its default state
+        if not self.is_big_heart:
+            self.toggle_heart_image()  # Return to big heart state
+        
+        print("EKG visualization cleanup complete")
 
 
     # Stops and start the BPM measurement and subsequent actions
@@ -199,9 +238,27 @@ class NotABotUI:
     async def click_screen(self, action_delay):
         await asyncio.sleep(action_delay)
         pyautogui.click()
+    
+
+    # Beats the heart back and forth
+    def toggle_heart_image(self):
+        # Save the previous image to prevent garbage collection
+        self.previous_heart_image = self.heart_image
+        
+        if self.is_big_heart:
+            self.heart_image = ImageTk.PhotoImage(self.small_heart_image)
+            self.is_big_heart = False
+        else:
+            self.heart_image = ImageTk.PhotoImage(self.big_heart_image)
+            self.is_big_heart = True
+        
+        # Update the label with the new image
+        self.heart_label.config(image=self.heart_image)
+        self.root.update()  # Force a UI update
 
 
     # Performs the actual actions of the application based on BPM
+    # DEPRECATED: This was used before the EKG was added when only the BPM chart was there
     def perform_action_per_bpm(self, heart_rate):
         action_delay = 60 / heart_rate
 
@@ -280,7 +337,6 @@ class NotABotUI:
 
     def simulate_ekg(self):
         self.current_bpm = 100
-        self.start_ekg()
         asyncio.run_coroutine_threadsafe(self.start_ekg(), self.bluetooth_loop)
 
 
@@ -317,6 +373,7 @@ class NotABotUI:
             precomputed_coords.append((x, y))
 
         print("Preparing EKG simulation...")
+        self.flatline_ekg()
         await asyncio.sleep(2)  
         print("Starting EKG visualization")
 
@@ -326,61 +383,91 @@ class NotABotUI:
         # Hold the line object reference to update it
         line_id = None
         
-        while self.is_running and not self.is_closing_application:
+        try:
 
-            # Calculate settings once
-            self.current_bpm = 60
-            seconds_per_beat = 60 / self.current_bpm  # 0.6 seconds per beat at 100 BPM
-            points_per_beat = len(ekg_points)
-            seconds_per_point = seconds_per_beat / points_per_beat  # Time to show each point
+            while self.is_running and not self.is_closing_application:
 
-            # Start with clean canvas for each beat
-            self.ekg_canvas.delete("ekg")
+                # Calculate settings once
+                seconds_per_beat = 60 / self.current_bpm  # 0.6 seconds per beat at 100 BPM
+                points_per_beat = len(ekg_points)
+                seconds_per_point = seconds_per_beat / points_per_beat  # Time to show each point
+
+                # Start with clean canvas for each beat
+                self.ekg_canvas.delete("ekg")
+                
+                # Calculate the beat start time
+                beat_start_time = start_time + (beat_counter * seconds_per_beat)
+                
+                # Draw the EKG line point by point within a single beat
+                await self.draw_ekg_line(
+                    points_per_beat,
+                    precomputed_coords,
+                    beat_start_time,
+                    seconds_per_point,
+                    line_id,
+                )
+                
+                # Update counter for performance tracking
+                beat_counter += 1
+                
+                # Log performance stats every 10 beats
+                if beat_counter % 10 == 0:
+                    elapsed = time.time() - start_time
+                    expected = beat_counter * seconds_per_beat
+                    print(f"EKG Counter: {beat_counter}, Elapsed: {elapsed:.2f}s, Expected: {expected:.2f}s, Drift: {elapsed-expected:.2f}s")
             
-            # Calculate the beat start time
-            beat_start_time = start_time + (beat_counter * seconds_per_beat)
+        finally:
+            # This block will execute when the loop ends for any reason
+            self.flatline_ekg()
+
+
+    # Draws the EKG line on the canvas
+    async def draw_ekg_line(self, points_per_beat, precomputed_coords, beat_start_time, seconds_per_point, line_id=None):
+        for point_idx in range(1, points_per_beat + 1):
+            # Clear previous line
+            if line_id:
+                self.ekg_canvas.delete(line_id)
             
-            # Draw the EKG line point by point within a single beat
-            for point_idx in range(1, points_per_beat + 1):
-                # Clear previous line
-                if line_id:
-                    self.ekg_canvas.delete(line_id)
-                
-                # Create points up to current index
-                points_to_draw = []
-                for i in range(min(point_idx, len(precomputed_coords))):
-                    points_to_draw.append(precomputed_coords[i][0])  # x coord
-                    points_to_draw.append(precomputed_coords[i][1])  # y coord
-                
-                # Draw the line
-                if len(points_to_draw) >= 4:  # Need at least 2 points for a line
-                    line_id = self.ekg_canvas.create_line(
-                        points_to_draw,
-                        fill=ui.heart_rate_line_color,
-                        width=3,
-                        tags="ekg",
-                    )
-                
-                # Perform a click at the peak R wave
-                if point_idx == 10:
-                    asyncio.run_coroutine_threadsafe(self.click_screen(0), self.bluetooth_loop)
-                
-                # Calculate exact time for this point
-                point_time = beat_start_time + (point_idx * seconds_per_point)
-                current_time = time.time()
-                
-                # Sleep precisely until next point time
-                sleep_time = max(0.001, point_time - current_time)
-                await asyncio.sleep(sleep_time)
-                
-            # Update counter for performance tracking
-            beat_counter += 1
+            # Create points up to current index
+            points_to_draw = []
+            for i in range(min(point_idx, len(precomputed_coords))):
+                points_to_draw.append(precomputed_coords[i][0])  # x coord
+                points_to_draw.append(precomputed_coords[i][1])  # y coord
             
-            # Log performance stats every 10 beats
-            if beat_counter % 10 == 0:
-                elapsed = time.time() - start_time
-                expected = beat_counter * seconds_per_beat
-                print(f"EKG Counter: {beat_counter}, Elapsed: {elapsed:.2f}s, Expected: {expected:.2f}s, Drift: {elapsed-expected:.2f}s")
+            # Draw the line
+            if len(points_to_draw) >= 4:  # Need at least 2 points for a line
+                line_id = self.ekg_canvas.create_line(
+                    points_to_draw,
+                    fill=ui.heart_rate_line_color,
+                    width=3,
+                    tags="ekg",
+                )
+            
+            # Beat the heart at the QRS Complex
+            if point_idx == 9:
+                print("Heart beat 1 - toggling heart image")
+                self.toggle_heart_image()
+            # Perform a click at the peak R wave
+            elif point_idx == 10:
+                print("Heart beat 2 - toggling heart image and clicking")
+                asyncio.run_coroutine_threadsafe(self.click_screen(0), self.bluetooth_loop)
+                self.toggle_heart_image()
+            elif point_idx == 11:
+                print("Heart beat 3 - toggling heart image")
+                self.toggle_heart_image()
+            elif point_idx == 12:
+                print("Heart beat 4 - toggling heart image")
+                self.toggle_heart_image()
+            
+            # Calculate exact time for this point
+            point_time = beat_start_time + (point_idx * seconds_per_point)
+            current_time = time.time()
+            
+            # Sleep precisely until next point time
+            sleep_time = max(0.001, point_time - current_time)
+            await asyncio.sleep(sleep_time)
+                    
+
 
 
 if __name__ == "__main__":
