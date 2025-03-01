@@ -7,6 +7,7 @@ import matplotlib
 import threading
 import pyautogui
 import keyboard
+import datetime
 import asyncio
 import random
 import time
@@ -76,7 +77,7 @@ class NotABotUI:
 
     def create_ui(self, root):
         self.root.title("Bluetooth Controller")
-        self.root.geometry("820x990")
+        self.root.geometry("520x490")
         self.root.config(bg=ui.background_color)
         self.root.protocol("WM_DELETE_WINDOW", self.close_application)
 
@@ -93,19 +94,15 @@ class NotABotUI:
         heart_label = tk.Label(self.frame, image=self.heart_image, bg=ui.foreground_color)
         heart_label.grid(row=0, columnspan=3, padx=10, pady=10)
 
-        # EKG plot
-        self.ekg_fig, self.ekg_ax = plt.subplots()
-        self.ekg_fig.patch.set_facecolor(ui.graph_background_color)
-        self.ekg_ax.set_facecolor(ui.graph_foreground_color)
-        self.ekg_ax.set_title('EKG')
-        self.ekg_ax.set_xlabel('Time (Seconds)')
-        self.ekg_ax.set_ylabel('Amplitude')
-        self.ekg_ax.set_ylim(-0.1, 0.4)
-        self.ekg_line, = self.ekg_ax.plot([], [], color=ui.heart_rate_line_color, animated=True)
-
-        self.ekg_canvas = FigureCanvasTkAgg(self.ekg_fig, master=self.frame)
-        self.ekg_canvas.get_tk_widget().config(bg=ui.foreground_color)
-        self.ekg_canvas.get_tk_widget().grid(row=1, columnspan=3, padx=10, pady=10)
+        # EKG Canvas
+        self.ekg_canvas = tk.Canvas(
+            self.frame, 
+            width=300, 
+            height=200, 
+            bg=ui.graph_background_color
+        )
+        self.ekg_canvas.grid(row=1, columnspan=3, padx=10, pady=10)
+        self.ekg_data = []
 
         # Matplotlib figure and axis
         self.fig, self.ax = plt.subplots()
@@ -280,6 +277,9 @@ class NotABotUI:
         ekg_points = [
             0.0,        # Delay
             0.0,        # Delay
+            0.0,        # Delay
+            0.0,        # Delay
+            0.0,        # Delay
             0.0,        # Pre  P Wave
             0.04,       # Peak P Wave
             0.0,        # Post P Wave
@@ -297,37 +297,57 @@ class NotABotUI:
             0.0,        # Delay
             0.0,        # Delay
             0.0,        # Delay
-            0.0,        # Delay
-            0.0,        # Delay
-            0.0,        # Delay
         ]
+
+        # Make sure ekg_data is initialized
+        if not hasattr(self, 'ekg_data') or self.ekg_data is None:
+            self.ekg_data = []
 
         self.current_bpm = 100
         bpm_delay = 60 / self.current_bpm
         beat_interval = bpm_delay / len(ekg_points)
 
-        max_graph_length = len(ekg_points) * 2
-        self.ekg_ax.set_xlim(0, max_graph_length)
+        canvas_width = self.ekg_canvas.winfo_width() or 300  # Use actual canvas width
+        canvas_height = self.ekg_canvas.winfo_height() or 200  # Use actual canvas height
+        
+        x_scale = canvas_width / (len(ekg_points))
+        y_scale = 300  # Scaling factor for y values
+        y_offset = canvas_height / 1.5  # Center the wave vertically
 
-        # Set up blitting
-        self.ekg_canvas.draw()
-        self.background = self.ekg_canvas.copy_from_bbox(self.ekg_ax.bbox)
+        ekg_counter = 0
+        start_time = datetime.datetime.now()
 
         while self.is_running and not self.is_closing_application:
-            for amp in ekg_points:
-                self.ekg_data.append(amp)
-                if len(self.ekg_data) > max_graph_length:
-                    self.ekg_data.pop(0)
-
-                self.ekg_line.set_xdata(range(len(self.ekg_data)))
-                self.ekg_line.set_ydata(self.ekg_data)
-
-                self.ekg_fig.canvas.restore_region(self.background)
-                self.ekg_ax.draw_artist(self.ekg_line)
-                self.ekg_canvas.blit(self.ekg_ax.bbox)
-                self.ekg_canvas.flush_events()
+            for i, amp in enumerate(ekg_points):
+                # Clear previous wave
+                self.ekg_canvas.delete("ekg")
                 
+                # Update data
+                self.ekg_data.append(amp)
+                if len(self.ekg_data) > len(ekg_points):
+                    self.ekg_data.pop(0)
+                
+                # Draw the EKG wave
+                points = []
+                for j in range(len(self.ekg_data)):
+                    x = int(j * x_scale)
+                    y = y_offset - (self.ekg_data[j] * y_scale)
+                    points.extend([x, y])
+                
+                if len(points) >= 4:  # Need at least 2 points to draw a line
+                    self.ekg_canvas.create_line(
+                        points, 
+                        fill=ui.heart_rate_line_color, 
+                        width=3,
+                        tags="ekg",
+                    )
+
                 await asyncio.sleep(beat_interval)
+            end_time = datetime.datetime.now()
+            ekg_counter += 1
+            print(f"EKG Counter: {ekg_counter}")
+            elapsed_time = (end_time - start_time).total_seconds()
+            print(f"Elapsed time: {elapsed_time} seconds")
 
 
 
