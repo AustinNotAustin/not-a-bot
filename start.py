@@ -101,6 +101,7 @@ class NotABotUI:
         self.ekg_ax.set_title('EKG')
         self.ekg_ax.set_xlabel('Time (Seconds)')
         self.ekg_ax.set_ylabel('Amplitude')
+        self.ekg_ax.set_ylim(-0.15, 0.4)
         self.ekg_line, = self.ekg_ax.plot([], [], color=ui.heart_rate_line_color)
 
         self.ekg_canvas = FigureCanvasTkAgg(self.ekg_fig, master=self.frame)
@@ -277,26 +278,52 @@ class NotABotUI:
 
 
     async def simulate_ekg(self):
-        self.current_bpm = 60
+        self.current_bpm = 100
         """Generates a more realistic EKG waveform based on BPM"""
+        if not hasattr(self, "time_index"):
+            self.time_index = 0  # Keep track of time for continuity
+
         while self.is_running and not self.is_closing_application:
             bpm = max(40, min(self.current_bpm, 180))  # Clamp BPM to reasonable range
             beat_interval = 60 / bpm  # Convert BPM to seconds per beat
             sample_rate = 100  # Samples per second
-            t = np.linspace(0, beat_interval, int(sample_rate * beat_interval))
+
+            # Maintain continuous time axis
+            t = np.linspace(self.time_index, self.time_index + beat_interval, int(sample_rate * beat_interval))
+            self.time_index += beat_interval  # Move time forward for the next beat
+
+            # Relative time for each wave in the cycle
+            p_wave_offset = 0.2
+            q_wave_offset = 0.4
+            r_wave_offset = 0.405
+            s_wave_offset = 0.41
+            t_wave_offset = 0.62
+
+            # New offsets based on BPM
+            adjusted_p_offset = p_wave_offset * beat_interval
+            adjusted_q_offset = q_wave_offset * beat_interval
+            adjusted_r_offset = r_wave_offset * beat_interval
+            adjusted_s_offset = s_wave_offset * beat_interval
+            adjusted_t_offset = t_wave_offset * beat_interval
 
             # Simulated EKG signal: P-wave, QRS complex, T-wave
             ekg_wave = (
-                0.05 * np.sin(2 * np.pi * 2 * t) +  # Smaller P wave
-                -0.4 * np.exp(-100 * (t - beat_interval * 0.2) ** 2) +  # Q dip
-                1.0 * np.exp(-100 * (t - beat_interval * 0.3) ** 2) +  # R peak
-                -0.6 * np.exp(-100 * (t - beat_interval * 0.4) ** 2) +  # S dip
-                0.15 * np.sin(2 * np.pi * 1.5 * (t - beat_interval * 0.5))  # Smaller T wave
+                # amplitude * exp(-sharpness * ((time % period) - offset) ** 2)
+                0.03 * np.exp(-400 * ((t % beat_interval) - beat_interval * adjusted_p_offset) ** 2)          # P wave
+                + -0.3 * np.exp(-1500 * ((t % beat_interval) - beat_interval * adjusted_q_offset) ** 2)       # Q dip
+                + 1.15 * np.exp(-2400 * ((t % beat_interval) - beat_interval * adjusted_r_offset) ** 2)       # R peak
+                + -0.55 * np.exp(-1800 * ((t % beat_interval) - beat_interval * adjusted_s_offset) ** 2)     # S dip
+                + 0.04 * np.exp(-400 * ((t % beat_interval) - beat_interval * adjusted_t_offset) ** 2)       # T wave
             )
+            
+            sleep_interval = beat_interval / len(ekg_wave)
+            print(f"beat_interval: {beat_interval}")
+            print(f"len(ekg_wave): {len(ekg_wave)}")
+            print(f"sleep_interval: {sleep_interval}")
 
             for value in ekg_wave:
                 self.ekg_data.append(value)
-                if len(self.ekg_data) > 100:
+                if len(self.ekg_data) > self.current_bpm:
                     self.ekg_data.pop(0)
 
                 self.ekg_line.set_xdata(range(len(self.ekg_data)))
@@ -304,7 +331,8 @@ class NotABotUI:
                 self.ekg_ax.relim()
                 self.ekg_ax.autoscale_view()
                 self.ekg_canvas.draw()
-                await asyncio.sleep(beat_interval / len(ekg_wave))  # Sync with BPM
+                await asyncio.sleep(sleep_interval)  # Sync with BPM
+
 
 
 if __name__ == "__main__":
