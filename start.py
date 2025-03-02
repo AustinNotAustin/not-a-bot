@@ -73,10 +73,16 @@ class NotABotUI:
 
 
     def create_ui(self, root):
-        self.root.title("Bluetooth Controller")
+        self.root.title("I <3 Clicking")
         self.root.geometry("280x440")
         self.root.config(bg=ui.background_color)
         self.root.protocol("WM_DELETE_WINDOW", self.close_application)
+
+        # Set the icon
+        self.root.iconbitmap("./img/heart.ico")
+        self.root.iconbitmap(default="./img/heart.ico")
+        icon_img = ImageTk.PhotoImage(file="./img/heart.png")
+        self.root.iconphoto(True, icon_img)
 
         # Create a frame to center the elements
         self.frame = tk.Frame(root)
