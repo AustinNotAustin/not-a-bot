@@ -1,5 +1,6 @@
 import ui_design_variables as ui
 import tkinter as tk
+import sys
 
 import asyncio
 
@@ -79,9 +80,12 @@ class NotABotUI:
         self.root.protocol("WM_DELETE_WINDOW", self.close_application)
 
         # Set the icon
-        self.root.iconbitmap("./img/heart.ico")
-        self.root.iconbitmap(default="./img/heart.ico")
-        icon_img = ImageTk.PhotoImage(file="./img/heart.png")
+        icon_path = self.resource_path("img/heart.ico")
+        png_path = self.resource_path("img/heart.png")
+
+        self.root.iconbitmap(icon_path)
+        self.root.iconbitmap(default=icon_path)
+        icon_img = ImageTk.PhotoImage(file=png_path)
         self.root.iconphoto(True, icon_img)
 
         # Create a frame to center the elements
@@ -90,7 +94,7 @@ class NotABotUI:
         self.frame.config(bg=ui.foreground_color)
 
         # Heart and EKG content
-        original_heart_image = Image.open("./img/heart.png")
+        original_heart_image = Image.open(png_path)
         self.small_heart_image = original_heart_image.resize((150, 150), Image.NEAREST)
         self.big_heart_image = original_heart_image.resize((160, 160), Image.NEAREST)
         self.is_big_heart = True
@@ -426,6 +430,17 @@ class NotABotUI:
             await asyncio.sleep(sleep_time)
 
 
+    def resource_path(self, relative_path):
+        """ Get absolute path to resource, works for dev and for PyInstaller """
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os_path.abspath(".")
+
+        return os_path.join(base_path, relative_path)
+
+
 if __name__ == "__main__":
 
     bluetooth_loop = asyncio.new_event_loop()
@@ -449,3 +464,4 @@ if __name__ == "__main__":
         heart_beat_loop,
     )
     root.mainloop()
+
