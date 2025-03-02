@@ -17,7 +17,7 @@ from time import time
 
 
 CANCEL_BUTTON = "esc"
-DEBUG = True
+DEBUG = False
 
 
 class NotABotUI:
