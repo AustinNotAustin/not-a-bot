@@ -1,8 +1,12 @@
-import asyncio
-
+from asyncio import create_task, sleep
 from bleak import BleakClient
-from time import sleep
 
+'''
+Used to manage bluetooth connections,
+read data,
+keep alive,
+and call actions based on the data
+'''
 
 class BluetoothController:
 
@@ -18,6 +22,7 @@ class BluetoothController:
     selected_device_characteristic_uuid = None
 
     is_bluetooth_device_connected = False
+    is_bluetooth_device_list_error = False
     is_heart_rate_monitor_running = False
 
     HEART_RATE_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
@@ -49,12 +54,12 @@ class BluetoothController:
                 self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}{self.selected_device_name}")
                 self.parent_instance.bluetooth_devices_button.config(text="Disconnect")
 
-                asyncio.create_task(self.bluetooth_keep_alive())
+                create_task(self.bluetooth_keep_alive())
 
             except Exception as e:
                 print(f"Connection error: {e}. Retrying in {self.BLUETOOTH_RECONNECT_RETRY_SLEEP} seconds...")
                 self.parent_instance.bluetooth_text.config(text=f"{self.parent_instance.bluetooth_device_verbiage}Connecting...")
-                await asyncio.sleep(self.BLUETOOTH_RECONNECT_RETRY_SLEEP)
+                await sleep(self.BLUETOOTH_RECONNECT_RETRY_SLEEP)
     
 
     # Connect to a defined Bluetooth device and keep the connection alive
@@ -71,7 +76,7 @@ class BluetoothController:
                 print(f"Connection error: {e}")
                 await self.disconnect_bluetooth_device()
             # Sleep before trying a keep alive again
-            await asyncio.sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
+            await sleep(self.BLUETOOTH_KEEP_ALIVE_SLEEP)
     
 
     # Begins reading heart rate data from the Bluetooth device
@@ -98,17 +103,7 @@ class BluetoothController:
 
 
     def stop_heart_rate_monitor(self):
-        try:
-            asyncio.run_coroutine_threadsafe(
-                self.client.stop_notify(
-                    self.selected_device_characteristic_uuid
-                ),
-                self.bluetooth_loop
-            )
-        except Exception as e:
-            print(f"Error encountered while stopping notifications: {e}")
-        finally:
-            self.is_heart_rate_monitor_running = False
+        self.is_heart_rate_monitor_running = False
 
 
     # Handle a situation where the bluetooth device disconnects
