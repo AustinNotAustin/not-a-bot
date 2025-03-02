@@ -161,9 +161,9 @@ class NotABotUI:
 
     # Stops the BPM measuyrement and clicking actions of the application
     def stop_actions(self):
+        self.is_running = False
         self.start_stop_button.config(text=self.START_TEXT, bg=ui.start_button_color)
         self.bluetooth_controller.stop_heart_rate_monitor()
-        self.is_running = False
 
 
     # Start the heart rate monitoring, EKG visualization, and clicking actions
@@ -340,7 +340,7 @@ class NotABotUI:
             else:
                 heart_rate = randint(max(60, last_heart_rate - heart_rate_change), min(100, last_heart_rate + heart_rate_change))
             self.update_bpm(heart_rate)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1)
 
 
     # Resets the EKG graph to appear as a flatline
@@ -360,9 +360,6 @@ class NotABotUI:
             width=3, 
             tags="ekg"
         )
-
-        if not self.is_running:
-            self.update_bpm(0)
         
         # Make sure the heart is in its default state
         if not self.is_big_heart:
