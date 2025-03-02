@@ -15,7 +15,6 @@ from pyautogui import click
 from time import time
 
 
-# The minus symbol is missing from my font pack
 CANCEL_BUTTON = "esc"
 DEBUG = True
 
