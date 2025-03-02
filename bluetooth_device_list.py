@@ -1,8 +1,7 @@
 import ui_design_variables as ui
 import tkinter as tk
 
-import asyncio
-
+from asyncio import run_coroutine_threadsafe
 from bleak import BleakScanner
 
 
@@ -35,7 +34,7 @@ class BluetoothDeviceList:
         except Exception:
             self.is_bluetooth_window_open = False  # Reset the flag if the window no longer exists
             self.create_bluetooth_devices_window()
-            asyncio.run_coroutine_threadsafe(self.list_bluetooth_devices(), self.bluetooth_loop)
+            run_coroutine_threadsafe(self.list_bluetooth_devices(), self.bluetooth_loop)
 
 
     # Creates a new window to list available Bluetooth devices
@@ -50,21 +49,21 @@ class BluetoothDeviceList:
         self.scan_frame.pack(fill=tk.BOTH, expand=True)
 
         self.device_listbox = tk.Listbox(self.scan_frame, width=40, height=30)
-        self.device_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.device_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=0)
         self.device_listbox.config(bg=ui.foreground_color, font=(ui.font, ui.xl_font))
 
         self.device_listbox.bind("<<ListboxSelect>>", self.on_device_select)
 
         self.button_frame = tk.Frame(self.scan_frame, bg=ui.background_color)
-        self.button_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=10, pady=10)
+        self.button_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=10, pady=8)
 
-        self.connect_button = tk.Button(self.button_frame, text="Connect", command=lambda: asyncio.run_coroutine_threadsafe(self.connect_to_device(), self.bluetooth_loop))
-        self.connect_button.config(height=2, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
-        self.connect_button.pack(side=tk.LEFT, padx=10, pady=10)
+        self.connect_button = tk.Button(self.button_frame, text="Connect", command=lambda: run_coroutine_threadsafe(self.connect_to_device(), self.bluetooth_loop))
+        self.connect_button.config(height=1, bg=ui.bluetooth_button_color, font=(ui.font, ui.xl_font))
+        self.connect_button.pack(side=tk.LEFT, padx=10, pady=0)
 
-        self.refresh_button = tk.Button(self.button_frame, text="Refresh", command=lambda: asyncio.run_coroutine_threadsafe(self.list_bluetooth_devices(), self.bluetooth_loop))
-        self.refresh_button.config(height=2, bg=ui.refresh_button_color, font=(ui.font, ui.xl_font))
-        self.refresh_button.pack(side=tk.RIGHT, padx=10, pady=10)
+        self.refresh_button = tk.Button(self.button_frame, text="Refresh", command=lambda: run_coroutine_threadsafe(self.list_bluetooth_devices(), self.bluetooth_loop))
+        self.refresh_button.config(height=1, bg=ui.refresh_button_color, font=(ui.font, ui.xl_font))
+        self.refresh_button.pack(side=tk.RIGHT, padx=10, pady=0)
 
         self.is_bluetooth_window_open = True
 
@@ -96,6 +95,7 @@ class BluetoothDeviceList:
 
             # Delete the scanning message
             self.device_listbox.delete(0)
+            self.bluetooth_controller.is_bluetooth_device_list_error = False
 
         except Exception as e:
             # We expect this error if the window is closed before completing.
@@ -104,15 +104,22 @@ class BluetoothDeviceList:
             self.device_listbox.delete(0)
             self.device_listbox.insert(tk.END, error_message)
             self.device_listbox.insert(tk.END, e)
+            self.bluetooth_controller.is_bluetooth_device_list_error = True
             return
     
 
     # Calls the appropriate controller function to connect to the selected device
     async def connect_to_device(self):
-        self.device_listbox.delete(0, tk.END)
-        self.device_listbox.insert(tk.END, "Attempting to connect...")
-        await self.bluetooth_controller.connect_bluetooth()
-        self.bluetooth_window_close()
+        # Check bluetooth is enabled on the device
+        if self.bluetooth_controller.is_bluetooth_device_list_error:
+            self.device_listbox.delete(0, tk.END)
+            self.device_listbox.insert(tk.END, "Error connecting to device...")
+            self.bluetooth_window_close()
+        else:
+            self.device_listbox.delete(0, tk.END)
+            self.device_listbox.insert(tk.END, "Attempting to connect...")
+            await self.bluetooth_controller.connect_bluetooth()
+            self.bluetooth_window_close()
         
 
     # Called when a device is selected from the Bluetooth devices listbox
