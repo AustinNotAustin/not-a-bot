@@ -13,6 +13,7 @@ from os import path as os_path
 from tkinter.font import Font
 from threading import Thread
 from pyautogui import click
+from pygame import mixer
 from time import time
 
 
@@ -71,6 +72,18 @@ class NotABotUI:
 
         # Listeners
         self.listen_for_toggle()
+
+        # Sound Logic
+        mixer.init()
+        self.click_sound = mixer.Sound(self.resource_path("sounds/single-dull-mouse-click.mp3"))
+        self.heart_beat_sound_50_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-50-bpm.mp3"))
+        self.heart_beat_sound_60_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-60-bpm.mp3"))
+        self.heart_beat_sound_70_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-70-bpm.mp3"))
+        self.heart_beat_sound_80_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-80-bpm.mp3"))
+        self.heart_beat_sound_90_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-90-bpm.mp3"))
+        self.heart_beat_sound_100_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-100-bpm.mp3"))
+        self.heart_beat_sound_110_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-110-bpm.mp3"))
+        self.heart_beat_sound_120_bpm = mixer.Sound(self.resource_path("sounds/single-dull-heartbeat-120-bpm.mp3"))
 
 
     def create_ui(self, root):
@@ -193,6 +206,37 @@ class NotABotUI:
     async def click_screen(self, action_delay):
         await asyncio.sleep(action_delay)
         click()
+    
+
+    # Simulates a mouse click sound
+    def play_click_sound(self):
+        self.click_sound.play()
+    
+
+    '''
+    Simulates a heartbeat sound
+
+    I don't feel like altering a single audio file to match the actual BPM,
+    so I'm lazy and did this.
+    '''
+    def play_heartbeat_sound(self, bpm):
+        # Modify the tempo of the heartbeat sound based on the BPM. Standard is 60BPM, 120 BPM will double the speed of the beat
+        if bpm <= 50:
+            self.heart_beat_sound_50_bpm.play()
+        elif bpm <= 60:
+            self.heart_beat_sound_60_bpm.play()
+        elif bpm <= 70:
+            self.heart_beat_sound_70_bpm.play()
+        elif bpm <= 80:
+            self.heart_beat_sound_80_bpm.play()
+        elif bpm <= 90:
+            self.heart_beat_sound_90_bpm.play()
+        elif bpm <= 100:
+            self.heart_beat_sound_100_bpm.play()
+        elif bpm <= 110:
+            self.heart_beat_sound_110_bpm.play()
+        else:
+            self.heart_beat_sound_120_bpm.play()
 
     
     # Listens for keyboard strokes to start and stop the heart rate monitor / clicker
@@ -328,17 +372,17 @@ class NotABotUI:
         self.root.update()
 
 
-    # Debugging function
+    # DEBUGGING FUNCTION
     # Simulate heart rate data for demonstration purposes
     async def simulate_heart_rate(self):
         heart_rate_change = 3
         heart_rate_change_chance = 0.4
         while self.is_running and not self.is_closing_application:
-            last_heart_rate = self.bpm_data[-1] if self.bpm_data else randint(60, 100)
+            last_heart_rate = self.bpm_data[-1] if self.bpm_data else randint(115, 125)
             if random() > heart_rate_change_chance:
                 heart_rate = last_heart_rate
             else:
-                heart_rate = randint(max(60, last_heart_rate - heart_rate_change), min(100, last_heart_rate + heart_rate_change))
+                heart_rate = randint(max(60, last_heart_rate - heart_rate_change), min(125, last_heart_rate + heart_rate_change))
             self.update_bpm(heart_rate)
             await asyncio.sleep(1)
 
@@ -408,13 +452,17 @@ class NotABotUI:
                 )
             
             # Beat the heart at the QRS Complex
-            if point_idx == 9 or point_idx == 11 or point_idx == 12:
-                self.toggle_heart_image()
-                await asyncio.sleep(0.01)
+            if point_idx == 9:
+                self.play_heartbeat_sound(self.current_bpm)
             # Perform a click at the peak R wave
             elif point_idx == 10:
                 asyncio.run_coroutine_threadsafe(self.click_screen(0), self.heart_beat_loop)
+                self.play_click_sound()
                 await asyncio.sleep(0.01)
+                self.toggle_heart_image()
+                await asyncio.sleep(0.01)
+            # Beat the heart at the QRS Complex
+            elif point_idx == 11 or point_idx == 12:
                 self.toggle_heart_image()
                 await asyncio.sleep(0.01)
             
